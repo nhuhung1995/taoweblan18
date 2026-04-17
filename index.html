@@ -750,8 +750,8 @@
           const live = await api.sbNttAddressSearch(payload);
           state.normalizeResult = { source: "live", ...live };
         } catch (err) {
-          const internal = await api.normalizeAddress(payload);
-          state.normalizeResult = { source: "internal-fallback", liveError: err, ...internal };
+          state.normalizeResult = { source: "live-error", error: err };
+          throw err;
         }
         log("Step2 normalizeAddress", state.normalizeResult);
       }
@@ -813,19 +813,14 @@
           if (err.code === "NTT_TEMP_ERROR") {
             const retry = JSON.parse(JSON.stringify(base));
             retry.reqServiceAreaAcquisition.nttapiCollaborationResult = false;
-            try {
-              const liveRetry = await api.sbServiceAreaCheck(retry);
-              state.availabilityResult = { source: "live-retry", ...liveRetry };
-            } catch (retryErr) {
-              const internalRetry = await api.serviceAreaCheck(retry);
-              state.availabilityResult = { source: "internal-fallback", liveError: retryErr, ...internalRetry };
-            }
-            log("Step4 serviceAreaCheck (retry fallback)", state.availabilityResult);
+            const liveRetry = await api.sbServiceAreaCheck(retry);
+            state.availabilityResult = { source: "live-retry", ...liveRetry };
+            log("Step4 serviceAreaCheck (live retry)", state.availabilityResult);
             return;
           }
-          const internal = await api.serviceAreaCheck(base);
-          state.availabilityResult = { source: "internal-fallback", liveError: err, ...internal };
-          log("Step4 serviceAreaCheck (fallback)", state.availabilityResult);
+          state.availabilityResult = { source: "live-error", error: err };
+          log("Step4 serviceAreaCheck (live fail)", state.availabilityResult);
+          throw err;
         }
       }
 
