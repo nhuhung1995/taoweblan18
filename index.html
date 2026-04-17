@@ -716,6 +716,103 @@
         return { candidates: [], raw: lastResp, attempt: "none" };
       }
 
+      async function searchNttRoomCandidates() {
+        const floor = toFullWidthFloor(document.getElementById("residenceFloor")?.value || "1階");
+        const buildingName = state.selectedBuilding?.name || "";
+        const roomName = state.selectedRoom || "";
+
+        const attempts = [
+          {
+            name: "room-kbn9-legacy",
+            addressKbn: "9",
+            overrides: {
+              orderAddress7: "住所なし",
+              orderAddress8: buildingName || "住所なし",
+              orderAddress9: "住所なし",
+              orderAddress10: roomName || "住所なし"
+            }
+          },
+          {
+            name: "room-kbn9-building-in-9",
+            addressKbn: "9",
+            overrides: {
+              orderAddress7: "住所なし",
+              orderAddress8: "住所なし",
+              orderAddress9: buildingName || "住所なし",
+              orderAddress10: roomName || "住所なし"
+            }
+          },
+          {
+            name: "room-kbn9-floor-in-10",
+            addressKbn: "9",
+            overrides: {
+              orderAddress7: "住所なし",
+              orderAddress8: buildingName || "住所なし",
+              orderAddress9: "住所なし",
+              orderAddress10: floor || "住所なし"
+            }
+          },
+          {
+            name: "room-kbn10-legacy",
+            addressKbn: "10",
+            overrides: {
+              orderAddress7: "住所なし",
+              orderAddress8: buildingName || "住所なし",
+              orderAddress9: "住所なし",
+              orderAddress10: roomName || "住所なし"
+            }
+          },
+          {
+            name: "room-kbn10-building-in-9",
+            addressKbn: "10",
+            overrides: {
+              orderAddress7: "住所なし",
+              orderAddress8: "住所なし",
+              orderAddress9: buildingName || "住所なし",
+              orderAddress10: roomName || "住所なし"
+            }
+          },
+          {
+            name: "room-kbn10-floor-in-10",
+            addressKbn: "10",
+            overrides: {
+              orderAddress7: "住所なし",
+              orderAddress8: buildingName || "住所なし",
+              orderAddress9: "住所なし",
+              orderAddress10: floor || "住所なし"
+            }
+          },
+          {
+            name: "room-kbn10-building9-floor10",
+            addressKbn: "10",
+            overrides: {
+              orderAddress7: "住所なし",
+              orderAddress8: "住所なし",
+              orderAddress9: buildingName || "住所なし",
+              orderAddress10: floor || "住所なし"
+            }
+          }
+        ];
+
+        let lastResp = null;
+        for (const attempt of attempts) {
+          try {
+            const resp = await api.sbNttAddressSearch(buildNttAddressPayload(attempt.addressKbn, attempt.overrides));
+            mergeNttAddressResult(resp);
+            lastResp = resp;
+            const candidates = extractNttCandidates(resp, "room");
+            log(`NTT ${attempt.name}`, { summary: summarizeNttResponse(resp), candidateCount: candidates.length });
+            if (candidates.length) {
+              return { candidates, raw: resp, attempt: attempt.name };
+            }
+          } catch (err) {
+            log(`NTT ${attempt.name} fail`, err);
+          }
+        }
+
+        return { candidates: [], raw: lastResp, attempt: "none" };
+      }
+
       async function primeNttAddressFlow() {
         // Some live cases only return building/room candidates after
         // running the nttAddressSearch chain (kbn=2 -> kbn=3) first.
@@ -807,17 +904,7 @@
         document.getElementById("roomSelect").innerHTML = "";
         state.selectedRoom = null;
         try {
-          const floor = toFullWidthFloor(document.getElementById("residenceFloor")?.value || "1階");
-          let result = await searchNttCandidates("9", "room");
-          if (!result.candidates.length) {
-            result = await searchNttCandidates("10", "room");
-          }
-          if (!result.candidates.length) {
-            result = await searchNttCandidates("10", "room-floor", {
-              orderAddress7: "住所なし",
-              orderAddress10: floor || "住所なし"
-            });
-          }
+          const result = await searchNttRoomCandidates();
           state.nttRoomBaseResponse = result.raw || null;
           const roomCandidates = result.candidates;
           log("Step1.57 roomByBuilding (live)", { attempt: result.attempt, roomCandidates, raw: result.raw });
