@@ -124,8 +124,23 @@
           <div class="field">
             <label>Housing Type</label>
             <select id="housingType">
-              <option value="1">1 (戸建)</option>
               <option value="2">2 (集合)</option>
+              <option value="1">1 (戸建)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Floor</label>
+            <select id="residenceFloor">
+              <option value="1階">1階</option>
+              <option value="2階">2階</option>
+              <option value="3階">3階</option>
+              <option value="4階">4階</option>
+              <option value="5階">5階</option>
+              <option value="6階">6階</option>
+              <option value="7階">7階</option>
+              <option value="8階">8階</option>
+              <option value="9階">9階</option>
+              <option value="10階">10階</option>
             </select>
           </div>
         </div>
@@ -582,8 +597,10 @@
 
         objectLists.forEach((item) => {
           if (!item || typeof item !== "object") return;
-          pushName(bucket, item.buldngNm, item.buldngId);
-          pushName(bucket, item.buildingName, item.buildingId);
+          if (stage !== "room") {
+            pushName(bucket, item.buldngNm, item.buldngId);
+            pushName(bucket, item.buildingName, item.buildingId);
+          }
           pushName(bucket, item.room, item.roomId);
           pushName(bucket, item.roomName, item.roomId);
           pushName(bucket, item.name, item.id);
@@ -618,6 +635,7 @@
       function buildNttAddressPayload(addressKbn, overrides = {}) {
         const zip = document.getElementById("zipCode").value.trim();
         const prev = state.nttAddressResult || {};
+        const floor = String(document.getElementById("residenceFloor")?.value || "1階");
         const payload = {
           individualCode: state.session?.individualCode || "",
           addressKbn: String(addressKbn),
@@ -631,7 +649,7 @@
           orderAddress4: state.selectedAddress?.chome || "住所なし",
           orderAddress5: toFullWidthDigits(state.selectedBanchi?.value || "") || "",
           orderAddress6: toFullWidthDigits(state.selectedGo || "") || "",
-          orderAddress7: "",
+          orderAddress7: floor,
           orderAddress8: state.selectedBuilding?.name || "",
           orderAddress9: state.selectedSubBuilding?.name || "",
           orderAddress10: state.selectedRoom || "",
@@ -702,6 +720,7 @@
       async function primeNttAddressFlow() {
         // Some live cases only return building/room candidates after
         // running the nttAddressSearch chain (kbn=2 -> kbn=3) first.
+        const floor = String(document.getElementById("residenceFloor")?.value || "1階");
         const seq = [
           { kbn: "2", name: "prime-kbn2" },
           { kbn: "3", name: "prime-kbn3" }
@@ -711,7 +730,7 @@
             const payload = buildNttAddressPayload(s.kbn, {
               orderAddress5: toFullWidthDigits(compactAddressNumber(state.selectedBanchi?.value || "")) || "住所なし",
               orderAddress6: toFullWidthDigits(compactAddressNumber(state.selectedGo || "")) || "住所なし",
-              orderAddress7: "住所なし",
+              orderAddress7: floor,
               orderAddress8: state.selectedBuilding?.name || "住所なし",
               orderAddress9: state.selectedSubBuilding?.name || "住所なし",
               orderAddress10: state.selectedRoom || "住所なし"
@@ -816,11 +835,15 @@
           state.nttRoomBaseResponse = result.raw;
           const roomCandidates = result.candidates;
           log("Step1.58 roomBySubBuilding (live)", { attempt: result.attempt, roomCandidates, raw: result.raw });
-          renderRoom(roomCandidates);
           if (roomCandidates.length) {
+            renderRoom(roomCandidates);
             safeRun(() => finalizeRoomSelection(roomCandidates[0].name));
           } else {
-            safeRun(() => finalizeRoomSelection(""));
+            // Keep selected sub-building (often room-like value such as 201号) when confirm step
+            // returns no list or only non-room metadata.
+            state.selectedRoom = state.selectedSubBuilding?.name || state.selectedRoom || "";
+            updateFullAddress();
+            safeRun(() => finalizeRoomSelection(state.selectedRoom || ""));
           }
         } catch (err) {
           log("Step1.58 roomBySubBuilding (live fail)", err);
