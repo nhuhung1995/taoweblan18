@@ -367,6 +367,11 @@
         const chomeSelect = document.getElementById("chomeSelect");
         const banchiSelect = document.getElementById("banchiSelect");
         chomeSelect.innerHTML = "";
+        const chomePlaceholder = document.createElement("option");
+        chomePlaceholder.value = "";
+        chomePlaceholder.textContent = "Choose chome";
+        chomePlaceholder.selected = true;
+        chomeSelect.appendChild(chomePlaceholder);
         banchiSelect.innerHTML = "";
         banchiSelect.disabled = true;
         document.getElementById("goSelectWrap").style.display = "none";
@@ -378,7 +383,6 @@
           const opt = document.createElement("option");
           opt.textContent = "No chome for this zip";
           opt.value = "";
-          chomeSelect.appendChild(opt);
           state.selectedAddress = null;
           state.selectedBanchi = null;
           state.selectedGo = "";
@@ -390,11 +394,10 @@
           const opt = document.createElement("option");
           opt.value = String(i);
           opt.textContent = `${item.full} (${item.addressCode})`;
-          if (i === 0) opt.selected = true;
           chomeSelect.appendChild(opt);
         });
-        state.selectedAddress = items[0] || null;
-        banchiSelect.disabled = false;
+        state.selectedAddress = null;
+        banchiSelect.disabled = true;
       }
 
       function renderBanchiList(candidates) {
@@ -404,11 +407,12 @@
         banchiSelect.disabled = true;
         goSelect.disabled = true;
         resetBuildingUi();
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = "Choose banchi";
+        placeholder.selected = true;
+        banchiSelect.appendChild(placeholder);
         if (!candidates.length) {
-          const opt = document.createElement("option");
-          opt.textContent = "No banchi rows for this chome";
-          opt.value = "";
-          banchiSelect.appendChild(opt);
           state.selectedBanchi = null;
           state.selectedGo = "";
           updateFullAddress();
@@ -420,13 +424,10 @@
           const opt = document.createElement("option");
           opt.value = value;
           opt.textContent = value;
-          if (i === 0) opt.selected = true;
           banchiSelect.appendChild(opt);
         });
-        const first = candidates[0];
-        state.selectedBanchi = first ? { value: (typeof first === "string" ? first : first.value) } : null;
+        state.selectedBanchi = null;
         banchiSelect.disabled = false;
-        safeRun(loadGoFromSelectedBanchi);
       }
 
       function renderGoSelect(goCandidates) {
@@ -442,17 +443,20 @@
           return;
         }
         wrap.style.display = "block";
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = "Choose go";
+        placeholder.selected = true;
+        select.appendChild(placeholder);
         goCandidates.forEach((g, i) => {
           const opt = document.createElement("option");
           opt.value = g;
           opt.textContent = g;
-          if (i === 0) opt.selected = true;
           select.appendChild(opt);
         });
-        state.selectedGo = goCandidates[0];
+        state.selectedGo = "";
         select.disabled = false;
         updateFullAddress();
-        safeRun(loadBuildingFromSelectedGo);
       }
 
       function updateFullAddress() {
@@ -502,14 +506,18 @@
         }
         wrap.style.display = "block";
         failWrap.style.display = "none";
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = "Choose building";
+        placeholder.selected = true;
+        select.appendChild(placeholder);
         candidates.forEach((item, i) => {
           const opt = document.createElement("option");
           opt.value = item.id;
           opt.textContent = item.name;
-          if (i === 0) opt.selected = true;
           select.appendChild(opt);
         });
-        state.selectedBuilding = candidates[0];
+        state.selectedBuilding = null;
         select.disabled = false;
         updateFullAddress();
       }
@@ -526,14 +534,18 @@
           return;
         }
         wrap.style.display = "block";
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = "Choose room";
+        placeholder.selected = true;
+        select.appendChild(placeholder);
         candidates.forEach((item, i) => {
           const opt = document.createElement("option");
           opt.value = item.id;
           opt.textContent = item.name;
-          if (i === 0) opt.selected = true;
           select.appendChild(opt);
         });
-        state.selectedRoom = candidates[0].name;
+        state.selectedRoom = "";
         select.disabled = false;
         updateFullAddress();
       }
@@ -782,7 +794,6 @@
             return;
           }
           renderBuilding(buildingCandidates, { isError: false });
-          safeRun(loadRoomFromSelectedBuilding);
         } catch (err) {
           state.buildingResult = { source: "live", buildingCandidates: [], error: err };
           log("Step1.56 buildingByGo (live fail)", state.buildingResult);
@@ -811,9 +822,6 @@
           const roomCandidates = result.candidates;
           log("Step1.57 roomByBuilding (live)", { attempt: result.attempt, roomCandidates, raw: result.raw });
           renderRoom(roomCandidates);
-          if (roomCandidates.length === 1) {
-            safeRun(() => finalizeRoomSelection(roomCandidates[0].name));
-          }
         } catch (err) {
           log("Step1.57 roomByBuilding (live fail)", err);
           renderRoom([]);
@@ -844,7 +852,6 @@
         state.searchResult = await api.searchAddress(zip);
         renderAddressList(state.searchResult.addresses);
         log("Step1 searchAddress", state.searchResult);
-        await loadBanchiFromSelected();
       }
 
       async function runNormalize() {
@@ -965,10 +972,23 @@
       document.getElementById("goSelect").addEventListener("change", (e) => {
         state.selectedGo = e.target.value;
         updateFullAddress();
-        safeRun(loadBuildingFromSelectedGo);
+        if (state.selectedGo) {
+          safeRun(loadBuildingFromSelectedGo);
+        } else {
+          resetBuildingUi();
+        }
       });
       document.getElementById("chomeSelect").addEventListener("change", (e) => {
         const idx = Number(e.target.value);
+        if (!e.target.value) {
+          state.selectedAddress = null;
+          renderBanchiList([]);
+          document.getElementById("goSelectWrap").style.display = "none";
+          document.getElementById("goSelect").innerHTML = "";
+          resetBuildingUi();
+          updateFullAddress();
+          return;
+        }
         if (Number.isNaN(idx) || !state.searchResult?.addresses?.[idx]) return;
         state.selectedAddress = state.searchResult.addresses[idx];
         safeRun(loadBanchiFromSelected);
@@ -977,13 +997,22 @@
         const value = e.target.value;
         state.selectedBanchi = value ? { value } : null;
         updateFullAddress();
-        safeRun(loadGoFromSelectedBanchi);
+        if (value) {
+          safeRun(loadGoFromSelectedBanchi);
+        } else {
+          document.getElementById("goSelectWrap").style.display = "none";
+          document.getElementById("goSelect").innerHTML = "";
+          state.selectedGo = "";
+          resetBuildingUi();
+        }
       });
       document.getElementById("buildingSelect").addEventListener("change", (e) => {
         const selected = e.target.value;
         if (!selected) {
           state.selectedBuilding = null;
           state.selectedRoom = null;
+          document.getElementById("roomSelectWrap").style.display = "none";
+          document.getElementById("roomSelect").innerHTML = "";
           updateFullAddress();
           return;
         }
@@ -997,6 +1026,11 @@
       });
       document.getElementById("roomSelect").addEventListener("change", (e) => {
         const selected = e.target.value;
+        if (!selected) {
+          state.selectedRoom = "";
+          updateFullAddress();
+          return;
+        }
         const name = selected ? (e.target.options[e.target.selectedIndex]?.textContent || selected) : "";
         safeRun(() => finalizeRoomSelection(name));
       });
