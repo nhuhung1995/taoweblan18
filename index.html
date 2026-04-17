@@ -178,12 +178,6 @@
             <select id="buildingSelect"></select>
           </div>
         </div>
-        <div class="row" id="subBuildingSelectWrap" style="display:none;">
-          <div class="field">
-            <label>Sub Building</label>
-            <select id="subBuildingSelect"></select>
-          </div>
-        </div>
         <div class="row" id="roomSelectWrap" style="display:none;">
           <div class="field">
             <label>Room</label>
@@ -216,7 +210,6 @@
         selectedBanchi: null,
         selectedGo: "",
         selectedBuilding: null,
-        selectedSubBuilding: null,
         selectedRoom: null,
         searchResult: null,
         banchiResult: null,
@@ -372,8 +365,10 @@
 
       function renderAddressList(items) {
         const chomeSelect = document.getElementById("chomeSelect");
+        const banchiSelect = document.getElementById("banchiSelect");
         chomeSelect.innerHTML = "";
-        document.getElementById("banchiSelect").innerHTML = "";
+        banchiSelect.innerHTML = "";
+        banchiSelect.disabled = true;
         document.getElementById("goSelectWrap").style.display = "none";
         document.getElementById("goSelect").innerHTML = "";
         document.getElementById("fullAddressWrap").style.display = "none";
@@ -388,7 +383,6 @@
           state.selectedBanchi = null;
           state.selectedGo = "";
           state.selectedBuilding = null;
-          state.selectedSubBuilding = null;
           state.selectedRoom = null;
           return;
         }
@@ -400,11 +394,15 @@
           chomeSelect.appendChild(opt);
         });
         state.selectedAddress = items[0] || null;
+        banchiSelect.disabled = false;
       }
 
       function renderBanchiList(candidates) {
         const banchiSelect = document.getElementById("banchiSelect");
+        const goSelect = document.getElementById("goSelect");
         banchiSelect.innerHTML = "";
+        banchiSelect.disabled = true;
+        goSelect.disabled = true;
         resetBuildingUi();
         if (!candidates.length) {
           const opt = document.createElement("option");
@@ -427,6 +425,7 @@
         });
         const first = candidates[0];
         state.selectedBanchi = first ? { value: (typeof first === "string" ? first : first.value) } : null;
+        banchiSelect.disabled = false;
         safeRun(loadGoFromSelectedBanchi);
       }
 
@@ -434,6 +433,7 @@
         const wrap = document.getElementById("goSelectWrap");
         const select = document.getElementById("goSelect");
         select.innerHTML = "";
+        select.disabled = true;
         if (!goCandidates.length) {
           wrap.style.display = "none";
           state.selectedGo = "";
@@ -450,6 +450,7 @@
           select.appendChild(opt);
         });
         state.selectedGo = goCandidates[0];
+        select.disabled = false;
         updateFullAddress();
         safeRun(loadBuildingFromSelectedGo);
       }
@@ -461,9 +462,8 @@
         const banchi = state.selectedBanchi?.value || "";
         const go = state.selectedGo || "";
         const building = state.selectedBuilding?.name || "";
-        const subBuilding = state.selectedSubBuilding?.name || "";
         const room = state.selectedRoom || "";
-        const text = [address1, banchi, go, building, subBuilding, room].filter(Boolean).join(" - ");
+        const text = [address1, banchi, go, building, room].filter(Boolean).join(" - ");
         if (!text) {
           wrap.style.display = "none";
           input.value = "";
@@ -476,13 +476,10 @@
       function resetBuildingUi() {
         document.getElementById("buildingSelectWrap").style.display = "none";
         document.getElementById("buildingSelect").innerHTML = "";
-        document.getElementById("subBuildingSelectWrap").style.display = "none";
-        document.getElementById("subBuildingSelect").innerHTML = "";
         document.getElementById("roomSelectWrap").style.display = "none";
         document.getElementById("roomSelect").innerHTML = "";
         document.getElementById("buildingFailWrap").style.display = "none";
         state.selectedBuilding = null;
-        state.selectedSubBuilding = null;
         state.selectedRoom = null;
         state.nttRoomBaseResponse = null;
         state.nttAddressResult = null;
@@ -495,6 +492,7 @@
         const failWrap = document.getElementById("buildingFailWrap");
         const select = document.getElementById("buildingSelect");
         select.innerHTML = "";
+        select.disabled = true;
         if (!candidates.length) {
           wrap.style.display = "none";
           failWrap.style.display = isError ? "block" : "none";
@@ -512,28 +510,7 @@
           select.appendChild(opt);
         });
         state.selectedBuilding = candidates[0];
-        updateFullAddress();
-      }
-
-      function renderSubBuilding(candidates) {
-        const wrap = document.getElementById("subBuildingSelectWrap");
-        const select = document.getElementById("subBuildingSelect");
-        select.innerHTML = "";
-        if (!candidates.length) {
-          wrap.style.display = "none";
-          state.selectedSubBuilding = null;
-          updateFullAddress();
-          return;
-        }
-        wrap.style.display = "block";
-        candidates.forEach((item, i) => {
-          const opt = document.createElement("option");
-          opt.value = item.id;
-          opt.textContent = item.name;
-          if (i === 0) opt.selected = true;
-          select.appendChild(opt);
-        });
-        state.selectedSubBuilding = candidates[0];
+        select.disabled = false;
         updateFullAddress();
       }
 
@@ -541,6 +518,7 @@
         const wrap = document.getElementById("roomSelectWrap");
         const select = document.getElementById("roomSelect");
         select.innerHTML = "";
+        select.disabled = true;
         if (!candidates.length) {
           wrap.style.display = "none";
           state.selectedRoom = "";
@@ -556,6 +534,7 @@
           select.appendChild(opt);
         });
         state.selectedRoom = candidates[0].name;
+        select.disabled = false;
         updateFullAddress();
       }
 
@@ -651,7 +630,7 @@
           orderAddress6: toFullWidthDigits(state.selectedGo || "") || "",
           orderAddress7: floor,
           orderAddress8: state.selectedBuilding?.name || "",
-          orderAddress9: state.selectedSubBuilding?.name || "",
+          orderAddress9: "",
           orderAddress10: state.selectedRoom || "",
           inUseServiceType: document.getElementById("inUseServiceType").value
         };
@@ -692,7 +671,7 @@
               orderAddress6: goFw || "住所なし",
               orderAddress7: "住所なし",
               orderAddress8: state.selectedBuilding?.name || "住所なし",
-              orderAddress9: state.selectedSubBuilding?.name || "住所なし",
+              orderAddress9: "住所なし",
               orderAddress10: state.selectedRoom || "住所なし"
             })
           }
@@ -732,7 +711,7 @@
               orderAddress6: toFullWidthDigits(compactAddressNumber(state.selectedGo || "")) || "住所なし",
               orderAddress7: floor,
               orderAddress8: state.selectedBuilding?.name || "住所なし",
-              orderAddress9: state.selectedSubBuilding?.name || "住所なし",
+              orderAddress9: "住所なし",
               orderAddress10: state.selectedRoom || "住所なし"
             });
             const resp = await api.sbNttAddressSearch(payload);
@@ -795,7 +774,7 @@
             return;
           }
           renderBuilding(buildingCandidates, { isError: false });
-          safeRun(loadSubBuildingFromSelectedBuilding);
+          safeRun(loadRoomFromSelectedBuilding);
         } catch (err) {
           state.buildingResult = { source: "live", buildingCandidates: [], error: err };
           log("Step1.56 buildingByGo (live fail)", state.buildingResult);
@@ -803,50 +782,22 @@
         }
       }
 
-      async function loadSubBuildingFromSelectedBuilding() {
+      async function loadRoomFromSelectedBuilding() {
         if (!state.selectedBuilding) return;
-        document.getElementById("subBuildingSelectWrap").style.display = "none";
-        document.getElementById("subBuildingSelect").innerHTML = "";
         document.getElementById("roomSelectWrap").style.display = "none";
         document.getElementById("roomSelect").innerHTML = "";
-        state.selectedSubBuilding = null;
         state.selectedRoom = null;
         try {
-          const result = await searchNttCandidates("9", "subBuilding");
-          const subBuildingCandidates = result.candidates;
-          log("Step1.57 subBuildingByBuilding (live)", { attempt: result.attempt, subBuildingCandidates, raw: result.raw });
-          renderSubBuilding(subBuildingCandidates);
-          if (subBuildingCandidates.length) {
-            safeRun(loadRoomFromSelectedSubBuilding);
-          }
-        } catch (err) {
-          log("Step1.57 subBuildingByBuilding (live fail)", err);
-          renderSubBuilding([]);
-        }
-      }
-
-      async function loadRoomFromSelectedSubBuilding() {
-        state.selectedRoom = "";
-        document.getElementById("roomSelectWrap").style.display = "none";
-        document.getElementById("roomSelect").innerHTML = "";
-        state.nttRoomBaseResponse = null;
-        try {
-          const result = await searchNttCandidates("10", "room");
-          state.nttRoomBaseResponse = result.raw;
+          const result = await searchNttCandidates("9", "room");
+          state.nttRoomBaseResponse = result.raw || null;
           const roomCandidates = result.candidates;
-          log("Step1.58 roomBySubBuilding (live)", { attempt: result.attempt, roomCandidates, raw: result.raw });
+          log("Step1.57 roomByBuilding (live)", { attempt: result.attempt, roomCandidates, raw: result.raw });
+          renderRoom(roomCandidates);
           if (roomCandidates.length) {
-            renderRoom(roomCandidates);
             safeRun(() => finalizeRoomSelection(roomCandidates[0].name));
-          } else {
-            // Keep selected sub-building (often room-like value such as 201号) when confirm step
-            // returns no list or only non-room metadata.
-            state.selectedRoom = state.selectedSubBuilding?.name || state.selectedRoom || "";
-            updateFullAddress();
-            safeRun(() => finalizeRoomSelection(state.selectedRoom || ""));
           }
         } catch (err) {
-          log("Step1.58 roomBySubBuilding (live fail)", err);
+          log("Step1.57 roomByBuilding (live fail)", err);
           renderRoom([]);
         }
       }
@@ -892,9 +843,9 @@
           orderAddress4: state.selectedAddress?.chome || "",
           orderAddress5: banchi,
           orderAddress6: go,
-          orderAddress7: "",
+          orderAddress7: String(document.getElementById("residenceFloor")?.value || "1階"),
           orderAddress8: state.selectedBuilding?.name || "",
-          orderAddress9: state.selectedSubBuilding?.name || "",
+          orderAddress9: "",
           orderAddress10: state.selectedRoom || ""
         };
         try {
@@ -946,7 +897,7 @@
               banchiGo2: go,
               banchiGo3: state.selectedRoom || "",
               buildingName1: state.selectedBuilding?.name || "",
-              buildingName2: state.selectedSubBuilding?.name || "",
+              buildingName2: "",
               buildingName3: state.selectedRoom || ""
             },
             areaFlg: ntt.areaFlg || "",
@@ -1014,7 +965,6 @@
         const selected = e.target.value;
         if (!selected) {
           state.selectedBuilding = null;
-          state.selectedSubBuilding = null;
           state.selectedRoom = null;
           updateFullAddress();
           return;
@@ -1023,26 +973,9 @@
           id: selected,
           name: e.target.options[e.target.selectedIndex]?.textContent || selected
         };
-        state.selectedSubBuilding = null;
         state.selectedRoom = null;
         updateFullAddress();
-        safeRun(loadSubBuildingFromSelectedBuilding);
-      });
-      document.getElementById("subBuildingSelect").addEventListener("change", (e) => {
-        const selected = e.target.value;
-        if (!selected) {
-          state.selectedSubBuilding = null;
-          state.selectedRoom = null;
-          updateFullAddress();
-          return;
-        }
-        state.selectedSubBuilding = {
-          id: selected,
-          name: e.target.options[e.target.selectedIndex]?.textContent || selected
-        };
-        state.selectedRoom = "";
-        updateFullAddress();
-        safeRun(loadRoomFromSelectedSubBuilding);
+        safeRun(loadRoomFromSelectedBuilding);
       });
       document.getElementById("roomSelect").addEventListener("change", (e) => {
         const selected = e.target.value;
