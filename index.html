@@ -549,7 +549,7 @@
       }
 
       function compactAddressNumber(value) {
-        return String(value || "").replace(/[\s\u3000\-ー－−]/g, "");
+        return String(value || "").replace(/[^\d０-９]/g, "");
       }
 
       function normalizeAddressItems(items) {
@@ -699,6 +699,32 @@
         return { candidates: [], raw: lastResp, attempt: "none" };
       }
 
+      async function primeNttAddressFlow() {
+        // Some live cases only return building/room candidates after
+        // running the nttAddressSearch chain (kbn=2 -> kbn=3) first.
+        const seq = [
+          { kbn: "2", name: "prime-kbn2" },
+          { kbn: "3", name: "prime-kbn3" }
+        ];
+        for (const s of seq) {
+          try {
+            const payload = buildNttAddressPayload(s.kbn, {
+              orderAddress5: toFullWidthDigits(compactAddressNumber(state.selectedBanchi?.value || "")) || "住所なし",
+              orderAddress6: toFullWidthDigits(compactAddressNumber(state.selectedGo || "")) || "住所なし",
+              orderAddress7: "住所なし",
+              orderAddress8: state.selectedBuilding?.name || "住所なし",
+              orderAddress9: state.selectedSubBuilding?.name || "住所なし",
+              orderAddress10: state.selectedRoom || "住所なし"
+            });
+            const resp = await api.sbNttAddressSearch(payload);
+            mergeNttAddressResult(resp);
+            log(`NTT ${s.name}`, summarizeNttResponse(resp));
+          } catch (err) {
+            log(`NTT ${s.name} fail`, err);
+          }
+        }
+      }
+
       async function loadBanchiFromSelected() {
         if (!state.selectedAddress || !state.selectedAddress.addressCode) return;
         const individualCode = state.session?.individualCode;
@@ -740,6 +766,7 @@
         if (!state.selectedAddress || !state.selectedBanchi || !state.selectedGo) return;
         resetBuildingUi();
         try {
+          await primeNttAddressFlow();
           const result = await searchNttCandidates("8", "building");
           const buildingCandidates = result.candidates;
           state.buildingResult = { source: "live-ntt-kbn8", attempt: result.attempt, buildingCandidates, raw: result.raw };
