@@ -542,6 +542,12 @@
         return String(value || "").replace(/[0-9]/g, (d) => String.fromCharCode(d.charCodeAt(0) + 65248));
       }
 
+      function toFullWidthFloor(value) {
+        const raw = String(value || "").trim();
+        if (!raw) return "";
+        return raw.replace(/[0-9]/g, (d) => String.fromCharCode(d.charCodeAt(0) + 65248));
+      }
+
       function compactAddressNumber(value) {
         return String(value || "").replace(/[^\d０-９]/g, "");
       }
@@ -614,7 +620,7 @@
       function buildNttAddressPayload(addressKbn, overrides = {}) {
         const zip = document.getElementById("zipCode").value.trim();
         const prev = state.nttAddressResult || {};
-        const floor = String(document.getElementById("residenceFloor")?.value || "1階");
+        const floor = toFullWidthFloor(document.getElementById("residenceFloor")?.value || "1階");
         const payload = {
           individualCode: state.session?.individualCode || "",
           addressKbn: String(addressKbn),
@@ -647,7 +653,7 @@
         };
       }
 
-      async function searchNttCandidates(addressKbn, stage) {
+      async function searchNttCandidates(addressKbn, stage, extraOverrides = {}) {
         const banchiRaw = state.selectedBanchi?.value || "";
         const goRaw = state.selectedGo || "";
         const banchiFw = toFullWidthDigits(banchiRaw);
@@ -656,12 +662,13 @@
         const goCompact = toFullWidthDigits(compactAddressNumber(goRaw));
 
         const attempts = [
-          { name: `${stage}-base`, payload: buildNttAddressPayload(addressKbn) },
+          { name: `${stage}-base`, payload: buildNttAddressPayload(addressKbn, extraOverrides) },
           {
             name: `${stage}-compact-number`,
             payload: buildNttAddressPayload(addressKbn, {
               orderAddress5: banchiCompact,
-              orderAddress6: goCompact
+              orderAddress6: goCompact,
+              ...extraOverrides
             })
           },
           {
@@ -672,7 +679,8 @@
               orderAddress7: "住所なし",
               orderAddress8: state.selectedBuilding?.name || "住所なし",
               orderAddress9: "住所なし",
-              orderAddress10: state.selectedRoom || "住所なし"
+              orderAddress10: state.selectedRoom || "住所なし",
+              ...extraOverrides
             })
           }
         ];
@@ -699,7 +707,7 @@
       async function primeNttAddressFlow() {
         // Some live cases only return building/room candidates after
         // running the nttAddressSearch chain (kbn=2 -> kbn=3) first.
-        const floor = String(document.getElementById("residenceFloor")?.value || "1階");
+        const floor = toFullWidthFloor(document.getElementById("residenceFloor")?.value || "1階");
         const seq = [
           { kbn: "2", name: "prime-kbn2" },
           { kbn: "3", name: "prime-kbn3" }
@@ -788,12 +796,22 @@
         document.getElementById("roomSelect").innerHTML = "";
         state.selectedRoom = null;
         try {
-          const result = await searchNttCandidates("9", "room");
+          const floor = toFullWidthFloor(document.getElementById("residenceFloor")?.value || "1階");
+          let result = await searchNttCandidates("9", "room");
+          if (!result.candidates.length) {
+            result = await searchNttCandidates("10", "room");
+          }
+          if (!result.candidates.length) {
+            result = await searchNttCandidates("10", "room-floor", {
+              orderAddress7: "住所なし",
+              orderAddress10: floor || "住所なし"
+            });
+          }
           state.nttRoomBaseResponse = result.raw || null;
           const roomCandidates = result.candidates;
           log("Step1.57 roomByBuilding (live)", { attempt: result.attempt, roomCandidates, raw: result.raw });
           renderRoom(roomCandidates);
-          if (roomCandidates.length) {
+          if (roomCandidates.length === 1) {
             safeRun(() => finalizeRoomSelection(roomCandidates[0].name));
           }
         } catch (err) {
@@ -843,7 +861,7 @@
           orderAddress4: state.selectedAddress?.chome || "",
           orderAddress5: banchi,
           orderAddress6: go,
-          orderAddress7: String(document.getElementById("residenceFloor")?.value || "1階"),
+          orderAddress7: toFullWidthFloor(document.getElementById("residenceFloor")?.value || "1階"),
           orderAddress8: state.selectedBuilding?.name || "",
           orderAddress9: "",
           orderAddress10: state.selectedRoom || ""
