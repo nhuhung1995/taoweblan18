@@ -697,6 +697,39 @@
           }
         ];
 
+        // Live fallback matrix for building step:
+        // some addresses only resolve candidates with a different service type
+        // and with orderAddress7 omitted/placeholder.
+        if (stage === "building") {
+          const serviceTypeCurrent = String(document.getElementById("inUseServiceType")?.value || "1");
+          const serviceTypeFallbacks = ["1", "2"].filter((x) => x !== serviceTypeCurrent);
+          serviceTypeFallbacks.forEach((serviceType) => {
+            attempts.push({
+              name: `${stage}-legacy-placeholder-svc${serviceType}`,
+              payload: buildNttAddressPayload(addressKbn, {
+                orderAddress5: banchiFw || "住所なし",
+                orderAddress6: goFw || "住所なし",
+                orderAddress7: "住所なし",
+                orderAddress8: state.selectedBuilding?.name || "住所なし",
+                orderAddress9: "住所なし",
+                orderAddress10: state.selectedRoom || "住所なし",
+                inUseServiceType: serviceType,
+                ...extraOverrides
+              })
+            });
+            attempts.push({
+              name: `${stage}-blank-floor-svc${serviceType}`,
+              payload: buildNttAddressPayload(addressKbn, {
+                orderAddress5: banchiFw || "",
+                orderAddress6: goFw || "",
+                orderAddress7: "",
+                inUseServiceType: serviceType,
+                ...extraOverrides
+              })
+            });
+          });
+        }
+
         let lastResp = null;
         for (const attempt of attempts) {
           try {
@@ -882,9 +915,24 @@
         resetBuildingUi();
         try {
           await primeNttAddressFlow();
-          const result = await searchNttCandidates("8", "building");
+          let result = await searchNttCandidates("8", "building");
+          let source = "live-ntt-kbn8";
+          if (!result.candidates.length) {
+            result = await searchNttCandidates("9", "building", {
+              orderAddress9: "住所なし",
+              orderAddress10: "住所なし"
+            });
+            source = "live-ntt-kbn9";
+          }
+          if (!result.candidates.length) {
+            result = await searchNttCandidates("10", "building", {
+              orderAddress9: "住所なし",
+              orderAddress10: "住所なし"
+            });
+            source = "live-ntt-kbn10";
+          }
           const buildingCandidates = result.candidates;
-          state.buildingResult = { source: "live-ntt-kbn8", attempt: result.attempt, buildingCandidates, raw: result.raw };
+          state.buildingResult = { source, attempt: result.attempt, buildingCandidates, raw: result.raw };
           log("Step1.56 buildingByGo (live)", state.buildingResult);
           if (!buildingCandidates.length) {
             renderBuilding([], { isError: false });
