@@ -1,0 +1,43 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum InfraType {
+  VDSL
+  FIBER
+}
+
+model AddressMaster {
+  id               String   @id @default(cuid())
+  zipcode          String
+  prefecture       String
+  city             String
+  chome            String
+  banchi           String
+  room             String
+  normalizedKey    String   @unique
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  infrastructure   InfrastructureMap?
+
+  @@index([zipcode])
+  @@index([zipcode, chome])
+  @@index([zipcode, chome, banchi])
+}
+
+model InfrastructureMap {
+  id          String      @id @default(cuid())
+  addressId   String      @unique
+  infraType   InfraType
+  regionCode  String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  address     AddressMaster @relation(fields: [addressId], references: [id], onDelete: Cascade)
+}

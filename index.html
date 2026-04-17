@@ -1,0 +1,909 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Address Check Clone Skeleton</title>
+    <style>
+      :root {
+        --bg: #f3f6fb;
+        --card: #ffffff;
+        --line: #d8e2ef;
+        --text: #13253f;
+        --muted: #5f6f86;
+        --brand: #1565c0;
+        --ok: #107c41;
+        --warn: #9f5b00;
+        --err: #c21717;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: linear-gradient(155deg, #f6f8fc 0%, #eaf0f9 100%);
+        color: var(--text);
+        font-family: "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+      }
+      .wrap {
+        max-width: 980px;
+        margin: 30px auto 60px;
+        padding: 0 16px;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 18px;
+        margin-bottom: 14px;
+        box-shadow: 0 10px 28px rgba(20, 38, 66, 0.07);
+      }
+      h1 { margin: 0 0 10px; font-size: 28px; }
+      h2 { margin: 0 0 10px; font-size: 18px; }
+      p { margin: 6px 0; line-height: 1.45; }
+      .row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+      .field { min-width: 220px; flex: 1; }
+      label { display: block; font-size: 13px; margin-bottom: 6px; color: var(--muted); }
+      input, select, button {
+        width: 100%;
+        border: 1px solid #c9d7ea;
+        border-radius: 10px;
+        padding: 10px 12px;
+        font-size: 14px;
+      }
+      button {
+        cursor: pointer;
+        background: var(--brand);
+        border-color: var(--brand);
+        color: #fff;
+        font-weight: 600;
+      }
+      button.ghost {
+        background: #fff;
+        color: var(--brand);
+      }
+      .pill {
+        display: inline-block;
+        border-radius: 999px;
+        padding: 4px 10px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .ok { background: #e8f8ef; color: var(--ok); }
+      .warn { background: #fff4e5; color: var(--warn); }
+      .err { background: #ffebeb; color: var(--err); }
+      .address-list label {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 10px;
+        margin-bottom: 8px;
+        cursor: pointer;
+      }
+      pre {
+        background: #0f1724;
+        color: #d5e6ff;
+        padding: 12px;
+        border-radius: 10px;
+        overflow: auto;
+        font-size: 12px;
+        max-height: 280px;
+      }
+      a { color: var(--brand); text-decoration: none; }
+      a:hover { text-decoration: underline; }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <section class="card">
+        <h1>Address Check Clone Skeleton</h1>
+        <p>Flow: <strong>search -> banchi -> gou -> normalize -> detail -> availability</strong></p>
+        <p><a href="./docs/softbank-address-check-flow.md">Open analysis doc</a></p>
+      </section>
+
+      <section class="card" id="sessionCard"></section>
+
+      <section class="card" id="flowCard" style="display:none;">
+        <h2>Step Input</h2>
+        <div class="row">
+          <div class="field">
+            <label>Zipcode (7 digits)</label>
+            <input id="zipCode" value="1050011" />
+          </div>
+          <div class="field">
+            <label>Building Kind</label>
+            <select id="buildingKind">
+              <option value="2">2 (valid)</option>
+              <option value="1">1 (invalid test)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>In Use Service Type</label>
+            <select id="inUseServiceType">
+              <option value="1">1</option>
+              <option value="2">2</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Housing Type</label>
+            <select id="housingType">
+              <option value="1">1 (戸建)</option>
+              <option value="2">2 (集合)</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <div class="field"><button id="runSearch">1) Search Address</button></div>
+          <div class="field"><button id="runNormalize">2) Normalize</button></div>
+          <div class="field"><button id="runDetail">3) Detail</button></div>
+          <div class="field"><button id="runAvailability">4) Availability</button></div>
+        </div>
+        <div class="row">
+          <div class="field"><button class="ghost" id="runAll">Run Full Pipeline</button></div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label>Chome</label>
+            <select id="chomeSelect"></select>
+          </div>
+        </div>
+        <h2>Banchi / Go</h2>
+        <div class="row">
+          <div class="field">
+            <label>Banchi</label>
+            <select id="banchiSelect"></select>
+          </div>
+        </div>
+        <div class="row" id="goSelectWrap" style="display:none;">
+          <div class="field">
+            <label>Go</label>
+            <select id="goSelect"></select>
+          </div>
+        </div>
+        <div class="row" id="buildingSelectWrap" style="display:none;">
+          <div class="field">
+            <label>Building</label>
+            <select id="buildingSelect"></select>
+          </div>
+        </div>
+        <div class="row" id="subBuildingSelectWrap" style="display:none;">
+          <div class="field">
+            <label>Sub Building</label>
+            <select id="subBuildingSelect"></select>
+          </div>
+        </div>
+        <div class="row" id="roomSelectWrap" style="display:none;">
+          <div class="field">
+            <label>Room</label>
+            <select id="roomSelect"></select>
+          </div>
+        </div>
+        <div class="row" id="buildingFailWrap" style="display:none;">
+          <div class="field">
+            <p><span class="pill warn">info</span> No building/room candidates from live API for this address.</p>
+          </div>
+        </div>
+        <div class="row" id="fullAddressWrap" style="display:none;">
+          <div class="field">
+            <label>Full Address</label>
+            <input id="fullAddressText" readonly />
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Runtime Log</h2>
+        <pre id="logBox">Ready.</pre>
+      </section>
+    </main>
+
+    <script>
+      const state = {
+        session: null,
+        selectedAddress: null,
+        selectedBanchi: null,
+        selectedGo: "",
+        selectedBuilding: null,
+        selectedSubBuilding: null,
+        selectedRoom: null,
+        searchResult: null,
+        banchiResult: null,
+        buildingResult: null,
+        nttAddressResult: null,
+        nttRoomBaseResponse: null,
+        normalizeResult: null,
+        detailResult: null,
+        availabilityResult: null
+      };
+
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const log = (title, data) => {
+        const box = document.getElementById("logBox");
+        box.textContent = `${title}\n${JSON.stringify(data, null, 2)}\n\n` + box.textContent;
+      };
+
+      const api = {
+        async searchAddress(zip) {
+          if (!/^\d{7}$/.test(zip)) throw { code: "E00010", message: "zipcode invalid" };
+          const response = await fetch(`/api/sb/search-address?zip=${zip}`);
+          const json = await response.json();
+          if (!response.ok) throw json;
+
+          const flattened = [];
+          (json.addresses || []).forEach((a) => {
+            const base = `${a.longNm || ""}${a.cityKanjiNm || ""}${a.streetKanjiNm || ""}`;
+            (a.streetInfoList || []).forEach((s) => {
+              flattened.push({
+                full: `${base}${s.addNbrKanjiNm || ""}`,
+                addressCode: s.addressCd || "",
+                pref: a.longNm || "",
+                city: a.cityKanjiNm || "",
+                street: a.streetKanjiNm || "",
+                chome: s.addNbrKanjiNm || ""
+              });
+            });
+          });
+          return { addresses: flattened };
+        },
+        async normalizeAddress(payload) {
+          await sleep(120);
+          const response = await fetch("/api/internal/normalize", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+          const json = await response.json();
+          if (!response.ok) throw json;
+          return json;
+        },
+        async sbDetailAddress(payload) {
+          const response = await fetch("/api/sb/detail-address", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+          const json = await response.json();
+          if (!response.ok) throw json;
+          return json;
+        },
+        async sbNttAddressSearch(payload) {
+          const response = await fetch("/api/sb/ntt-address", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+          const json = await response.json();
+          if (!response.ok) throw json;
+          return json;
+        },
+        async sbServiceAreaCheck(payload) {
+          const response = await fetch("/api/sb/service-area-check", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+          const json = await response.json();
+          if (!response.ok) throw json;
+          return json;
+        },
+        async detailAddressSearch(payload) {
+          await sleep(120);
+          const response = await fetch("/api/internal/detail", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+          const json = await response.json();
+          if (!response.ok) throw json;
+          return json;
+        },
+        async serviceAreaCheck(payload) {
+          await sleep(120);
+          const response = await fetch("/api/internal/availability", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+          const json = await response.json();
+          if (!response.ok) throw json;
+          return json;
+        }
+      };
+
+      function renderSession() {
+        const card = document.getElementById("sessionCard");
+        const q = new URLSearchParams(location.search);
+        const individualCode = q.get("individualCode");
+        if (!individualCode) {
+          card.innerHTML = `
+            <h2>Access Limited</h2>
+            <p><span class="pill err">blocked</span> Missing <code>individualCode</code> in URL.</p>
+            <p>Open with sample: <a href="?individualCode=422sLcGAVUfqK">${location.origin}${location.pathname}?individualCode=422sLcGAVUfqK</a></p>
+          `;
+          return;
+        }
+        card.innerHTML = `<h2>Session Guard</h2><p><span class="pill warn">loading</span> Creating session from SB endpoint...</p>`;
+        fetch("/api/sb/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ individualCode })
+        })
+          .then(async (res) => {
+            const data = await res.json();
+            if (!res.ok) throw data;
+            const ag = data?.agencyProperty || {};
+            if (!ag.individualCd || !ag.uuid) {
+              throw { error: "invalid individualCode or empty response", response: data };
+            }
+            state.session = {
+              individualCode: ag.individualCd || individualCode,
+              uuid: ag.uuid || "",
+              nanoId: ag.nanoId || ""
+            };
+            document.getElementById("flowCard").style.display = "block";
+            card.innerHTML = `
+              <h2>Session Guard</h2>
+              <p><span class="pill ok">active</span> individualCode + uuid initialized by SB API.</p>
+              <p><strong>individualCode:</strong> ${state.session.individualCode}</p>
+              <p><strong>uuid:</strong> ${state.session.uuid}</p>
+            `;
+            log("Session initialized", ag);
+          })
+          .catch((err) => {
+            card.innerHTML = `
+              <h2>Session Guard</h2>
+              <p><span class="pill err">error</span> Failed to initialize session (check <code>individualCode</code>).</p>
+            `;
+            log("Session error", err);
+          });
+      }
+
+      function renderAddressList(items) {
+        const chomeSelect = document.getElementById("chomeSelect");
+        chomeSelect.innerHTML = "";
+        document.getElementById("banchiSelect").innerHTML = "";
+        document.getElementById("goSelectWrap").style.display = "none";
+        document.getElementById("goSelect").innerHTML = "";
+        document.getElementById("fullAddressWrap").style.display = "none";
+        document.getElementById("fullAddressText").value = "";
+        resetBuildingUi();
+        if (!items.length) {
+          const opt = document.createElement("option");
+          opt.textContent = "No chome for this zip";
+          opt.value = "";
+          chomeSelect.appendChild(opt);
+          state.selectedAddress = null;
+          state.selectedBanchi = null;
+          state.selectedGo = "";
+          state.selectedBuilding = null;
+          state.selectedSubBuilding = null;
+          state.selectedRoom = null;
+          return;
+        }
+        items.forEach((item, i) => {
+          const opt = document.createElement("option");
+          opt.value = String(i);
+          opt.textContent = `${item.full} (${item.addressCode})`;
+          if (i === 0) opt.selected = true;
+          chomeSelect.appendChild(opt);
+        });
+        state.selectedAddress = items[0] || null;
+      }
+
+      function renderBanchiList(candidates) {
+        const banchiSelect = document.getElementById("banchiSelect");
+        banchiSelect.innerHTML = "";
+        resetBuildingUi();
+        if (!candidates.length) {
+          const opt = document.createElement("option");
+          opt.textContent = "No banchi rows for this chome";
+          opt.value = "";
+          banchiSelect.appendChild(opt);
+          state.selectedBanchi = null;
+          state.selectedGo = "";
+          updateFullAddress();
+          return;
+        }
+
+        candidates.forEach((b, i) => {
+          const value = typeof b === "string" ? b : b.value;
+          const opt = document.createElement("option");
+          opt.value = value;
+          opt.textContent = value;
+          if (i === 0) opt.selected = true;
+          banchiSelect.appendChild(opt);
+        });
+        const first = candidates[0];
+        state.selectedBanchi = first ? { value: (typeof first === "string" ? first : first.value) } : null;
+        safeRun(loadGoFromSelectedBanchi);
+      }
+
+      function renderGoSelect(goCandidates) {
+        const wrap = document.getElementById("goSelectWrap");
+        const select = document.getElementById("goSelect");
+        select.innerHTML = "";
+        if (!goCandidates.length) {
+          wrap.style.display = "none";
+          state.selectedGo = "";
+          updateFullAddress();
+          resetBuildingUi();
+          return;
+        }
+        wrap.style.display = "block";
+        goCandidates.forEach((g, i) => {
+          const opt = document.createElement("option");
+          opt.value = g;
+          opt.textContent = g;
+          if (i === 0) opt.selected = true;
+          select.appendChild(opt);
+        });
+        state.selectedGo = goCandidates[0];
+        updateFullAddress();
+        safeRun(loadBuildingFromSelectedGo);
+      }
+
+      function updateFullAddress() {
+        const wrap = document.getElementById("fullAddressWrap");
+        const input = document.getElementById("fullAddressText");
+        const address1 = state.selectedAddress?.full || "";
+        const banchi = state.selectedBanchi?.value || "";
+        const go = state.selectedGo || "";
+        const building = state.selectedBuilding?.name || "";
+        const subBuilding = state.selectedSubBuilding?.name || "";
+        const room = state.selectedRoom || "";
+        const text = [address1, banchi, go, building, subBuilding, room].filter(Boolean).join(" - ");
+        if (!text) {
+          wrap.style.display = "none";
+          input.value = "";
+          return;
+        }
+        wrap.style.display = "block";
+        input.value = text;
+      }
+
+      function resetBuildingUi() {
+        document.getElementById("buildingSelectWrap").style.display = "none";
+        document.getElementById("buildingSelect").innerHTML = "";
+        document.getElementById("subBuildingSelectWrap").style.display = "none";
+        document.getElementById("subBuildingSelect").innerHTML = "";
+        document.getElementById("roomSelectWrap").style.display = "none";
+        document.getElementById("roomSelect").innerHTML = "";
+        document.getElementById("buildingFailWrap").style.display = "none";
+        state.selectedBuilding = null;
+        state.selectedSubBuilding = null;
+        state.selectedRoom = null;
+        state.nttRoomBaseResponse = null;
+        state.nttAddressResult = null;
+        updateFullAddress();
+      }
+
+      function renderBuilding(candidates, opts = {}) {
+        const { isError = false } = opts;
+        const wrap = document.getElementById("buildingSelectWrap");
+        const failWrap = document.getElementById("buildingFailWrap");
+        const select = document.getElementById("buildingSelect");
+        select.innerHTML = "";
+        if (!candidates.length) {
+          wrap.style.display = "none";
+          failWrap.style.display = isError ? "block" : "none";
+          state.selectedBuilding = null;
+          updateFullAddress();
+          return;
+        }
+        wrap.style.display = "block";
+        failWrap.style.display = "none";
+        candidates.forEach((item, i) => {
+          const opt = document.createElement("option");
+          opt.value = item.id;
+          opt.textContent = item.name;
+          if (i === 0) opt.selected = true;
+          select.appendChild(opt);
+        });
+        state.selectedBuilding = candidates[0];
+        updateFullAddress();
+      }
+
+      function renderSubBuilding(candidates) {
+        const wrap = document.getElementById("subBuildingSelectWrap");
+        const select = document.getElementById("subBuildingSelect");
+        select.innerHTML = "";
+        if (!candidates.length) {
+          wrap.style.display = "none";
+          state.selectedSubBuilding = null;
+          updateFullAddress();
+          return;
+        }
+        wrap.style.display = "block";
+        candidates.forEach((item, i) => {
+          const opt = document.createElement("option");
+          opt.value = item.id;
+          opt.textContent = item.name;
+          if (i === 0) opt.selected = true;
+          select.appendChild(opt);
+        });
+        state.selectedSubBuilding = candidates[0];
+        updateFullAddress();
+      }
+
+      function renderRoom(candidates) {
+        const wrap = document.getElementById("roomSelectWrap");
+        const select = document.getElementById("roomSelect");
+        select.innerHTML = "";
+        if (!candidates.length) {
+          wrap.style.display = "none";
+          state.selectedRoom = "";
+          updateFullAddress();
+          return;
+        }
+        wrap.style.display = "block";
+        candidates.forEach((item, i) => {
+          const opt = document.createElement("option");
+          opt.value = item.id;
+          opt.textContent = item.name;
+          if (i === 0) opt.selected = true;
+          select.appendChild(opt);
+        });
+        state.selectedRoom = candidates[0].name;
+        updateFullAddress();
+      }
+
+      function toFullWidthDigits(value) {
+        return String(value || "").replace(/[0-9]/g, (d) => String.fromCharCode(d.charCodeAt(0) + 65248));
+      }
+
+      function normalizeAddressItems(items) {
+        return (Array.isArray(items) ? items : [])
+          .map((x) => String(x || "").trim())
+          .filter((x) => x !== "" && x !== "住所なし")
+          .map((x) => ({ id: x, name: x }));
+      }
+
+      function mergeNttAddressResult(resp) {
+        const prev = state.nttAddressResult || {};
+        state.nttAddressResult = {
+          ...prev,
+          nttIntegrationResult: resp?.nttIntegrationResult ?? prev.nttIntegrationResult,
+          areaFlg: resp?.areaFlg ?? prev.areaFlg ?? "",
+          orderNumber: resp?.orderNumber ?? prev.orderNumber ?? "",
+          nttOrderNumber: resp?.nttOrderNumber ?? prev.nttOrderNumber ?? "",
+          addressConfirmFlag: resp?.addressConfirmFlag ?? prev.addressConfirmFlag ?? "",
+          addressKbn: resp?.addressKbn ?? prev.addressKbn ?? "",
+          dstrctCd: resp?.dstrctCd ?? prev.dstrctCd ?? "",
+          addressCd: resp?.addressCd ?? prev.addressCd ?? "",
+          buldngInfoList: Array.isArray(resp?.buldngInfoList) ? resp.buldngInfoList : (prev.buldngInfoList || [])
+        };
+      }
+
+      function buildNttAddressPayload(addressKbn, overrides = {}) {
+        const zip = document.getElementById("zipCode").value.trim();
+        const prev = state.nttAddressResult || {};
+        const payload = {
+          individualCode: state.session?.individualCode || "",
+          addressKbn: String(addressKbn),
+          areaFlg: prev.areaFlg || "",
+          orderNumber: prev.orderNumber || "",
+          buildingKind: document.getElementById("buildingKind").value,
+          orderZip: zip,
+          orderAddress1: state.selectedAddress?.pref || "住所なし",
+          orderAddress2: state.selectedAddress?.city || "住所なし",
+          orderAddress3: state.selectedAddress?.street || "住所なし",
+          orderAddress4: state.selectedAddress?.chome || "住所なし",
+          orderAddress5: toFullWidthDigits(state.selectedBanchi?.value || "") || "住所なし",
+          orderAddress6: toFullWidthDigits(state.selectedGo || "") || "住所なし",
+          orderAddress7: "住所なし",
+          orderAddress8: state.selectedBuilding?.name || "住所なし",
+          orderAddress9: state.selectedSubBuilding?.name || "住所なし",
+          inUseServiceType: document.getElementById("inUseServiceType").value
+        };
+        return { ...payload, ...overrides };
+      }
+
+      async function loadBanchiFromSelected() {
+        if (!state.selectedAddress || !state.selectedAddress.addressCode) return;
+        const individualCode = state.session?.individualCode;
+        if (!individualCode) throw { code: "E_PRECHECK", message: "session not initialized" };
+        const live = await api.sbDetailAddress({
+          individualCode,
+          requestKbn: "1",
+          addressCode: state.selectedAddress.addressCode,
+          choume: state.selectedAddress.chome
+        });
+        state.banchiResult = {
+          source: "live",
+          addressCode: state.selectedAddress.addressCode,
+          banchiCandidates: live.addressBanchiList || []
+        };
+        renderBanchiList(state.banchiResult.banchiCandidates || []);
+        log("Step1.5 banchiByAddressCode (live)", state.banchiResult);
+      }
+
+      async function loadGoFromSelectedBanchi() {
+        if (!state.selectedAddress || !state.selectedBanchi) return;
+        const individualCode = state.session?.individualCode;
+        if (!individualCode) throw { code: "E_PRECHECK", message: "session not initialized" };
+        const banchi = toFullWidthDigits(state.selectedBanchi.value);
+
+        const live = await api.sbDetailAddress({
+          individualCode,
+          requestKbn: "2",
+          addressCode: state.selectedAddress.addressCode,
+          choume: state.selectedAddress.chome,
+          banchi
+        });
+        const goCandidates = live.addressGoList || [];
+        log("Step1.55 goByBanchi (live)", { banchi: state.selectedBanchi.value, goCandidates });
+        renderGoSelect(goCandidates);
+      }
+
+      async function loadBuildingFromSelectedGo() {
+        if (!state.selectedAddress || !state.selectedBanchi || !state.selectedGo) return;
+        resetBuildingUi();
+        try {
+          const live = await api.sbNttAddressSearch(buildNttAddressPayload("8"));
+          mergeNttAddressResult(live);
+          const buildingCandidates = normalizeAddressItems(live?.orderAddressList);
+          state.buildingResult = { source: "live-ntt-kbn8", buildingCandidates, raw: live };
+          log("Step1.56 buildingByGo (live)", state.buildingResult);
+          if (!buildingCandidates.length) {
+            renderBuilding([], { isError: false });
+            return;
+          }
+          renderBuilding(buildingCandidates, { isError: false });
+          safeRun(loadSubBuildingFromSelectedBuilding);
+        } catch (err) {
+          state.buildingResult = { source: "live", buildingCandidates: [], error: err };
+          log("Step1.56 buildingByGo (live fail)", state.buildingResult);
+          renderBuilding([], { isError: true });
+        }
+      }
+
+      async function loadSubBuildingFromSelectedBuilding() {
+        if (!state.selectedBuilding) return;
+        document.getElementById("subBuildingSelectWrap").style.display = "none";
+        document.getElementById("subBuildingSelect").innerHTML = "";
+        document.getElementById("roomSelectWrap").style.display = "none";
+        document.getElementById("roomSelect").innerHTML = "";
+        state.selectedSubBuilding = null;
+        state.selectedRoom = null;
+        try {
+          const live = await api.sbNttAddressSearch(buildNttAddressPayload("9"));
+          mergeNttAddressResult(live);
+          const subBuildingCandidates = normalizeAddressItems(live?.orderAddressList);
+          log("Step1.57 subBuildingByBuilding (live)", { subBuildingCandidates, raw: live });
+          renderSubBuilding(subBuildingCandidates);
+          if (subBuildingCandidates.length) {
+            safeRun(loadRoomFromSelectedSubBuilding);
+          }
+        } catch (err) {
+          log("Step1.57 subBuildingByBuilding (live fail)", err);
+          renderSubBuilding([]);
+        }
+      }
+
+      async function loadRoomFromSelectedSubBuilding() {
+        state.selectedRoom = "";
+        document.getElementById("roomSelectWrap").style.display = "none";
+        document.getElementById("roomSelect").innerHTML = "";
+        state.nttRoomBaseResponse = null;
+        try {
+          const live = await api.sbNttAddressSearch(buildNttAddressPayload("10"));
+          mergeNttAddressResult(live);
+          state.nttRoomBaseResponse = live;
+          const roomCandidates = normalizeAddressItems(live?.orderAddressList);
+          log("Step1.58 roomBySubBuilding (live)", { roomCandidates, raw: live });
+          renderRoom(roomCandidates);
+          if (roomCandidates.length) {
+            safeRun(() => finalizeRoomSelection(roomCandidates[0].name));
+          } else {
+            safeRun(() => finalizeRoomSelection(""));
+          }
+        } catch (err) {
+          log("Step1.58 roomBySubBuilding (live fail)", err);
+          renderRoom([]);
+        }
+      }
+
+      async function finalizeRoomSelection(roomName) {
+        const base = state.nttRoomBaseResponse;
+        state.selectedRoom = roomName || "";
+        if (!base) {
+          updateFullAddress();
+          return;
+        }
+        if (String(base.addressConfirmFlag || "") === "0") {
+          const finalResp = await api.sbNttAddressSearch(buildNttAddressPayload("10", {
+            orderAddress10: roomName || "住所なし"
+          }));
+          mergeNttAddressResult(finalResp);
+          log("Step1.59 roomConfirmByNttAddress (live)", finalResp);
+        } else {
+          mergeNttAddressResult(base);
+        }
+        updateFullAddress();
+      }
+
+      async function runSearch() {
+        const zip = document.getElementById("zipCode").value.trim();
+        state.searchResult = await api.searchAddress(zip);
+        renderAddressList(state.searchResult.addresses);
+        log("Step1 searchAddress", state.searchResult);
+        await loadBanchiFromSelected();
+      }
+
+      async function runNormalize() {
+        const banchi = toFullWidthDigits(state.selectedBanchi?.value || "");
+        const go = toFullWidthDigits(state.selectedGo || "");
+        const payload = {
+          individualCode: state.session?.individualCode || "",
+          buildingKind: document.getElementById("buildingKind").value,
+          orderZip: document.getElementById("zipCode").value.trim(),
+          inUseServiceType: document.getElementById("inUseServiceType").value,
+          orderAddress1: state.selectedAddress?.pref || "",
+          orderAddress2: state.selectedAddress?.city || "",
+          orderAddress3: state.selectedAddress?.street || "",
+          orderAddress4: state.selectedAddress?.chome || "",
+          orderAddress5: banchi,
+          orderAddress6: go,
+          orderAddress7: "",
+          orderAddress8: state.selectedBuilding?.name || "",
+          orderAddress9: state.selectedSubBuilding?.name || "",
+          orderAddress10: state.selectedRoom || ""
+        };
+        try {
+          const live = await api.sbNttAddressSearch(payload);
+          state.normalizeResult = { source: "live", ...live };
+        } catch (err) {
+          const internal = await api.normalizeAddress(payload);
+          state.normalizeResult = { source: "internal-fallback", liveError: err, ...internal };
+        }
+        log("Step2 normalizeAddress", state.normalizeResult);
+      }
+
+      async function runDetail() {
+        if (!state.selectedAddress) throw { code: "E_PRECHECK", message: "address not selected" };
+        const payload = {
+          requestKbn: "1",
+          latitude: state.selectedAddress.lat ?? 35.0,
+          longitude: state.selectedAddress.lon ?? 139.0,
+          addressCode: state.selectedAddress.addressCode
+        };
+        state.detailResult = await api.detailAddressSearch(payload);
+        log("Step3 detailAddressSearch", state.detailResult);
+      }
+
+      async function runAvailability() {
+        if (!state.selectedAddress) throw { code: "E_PRECHECK", message: "address not selected" };
+        const banchi = toFullWidthDigits(state.selectedBanchi?.value || "");
+        const go = toFullWidthDigits(state.selectedGo || "");
+        const ntt = state.nttAddressResult || {};
+        const buldngId = Array.isArray(ntt.buldngInfoList)
+          ? (ntt.buldngInfoList.find((x) => String(x?.buldngNm || "") === String(state.selectedBuilding?.name || ""))?.buldngId || "")
+          : "";
+        const base = {
+          individualCode: state.session?.individualCode || "",
+          businessType: "01",
+          channel: "web",
+          reqServiceAreaAcquisition: {
+            nttapiCollaborationResult: true,
+            placeAddress: {
+              housingType: document.getElementById("housingType").value,
+              addressCode: state.selectedAddress.addressCode,
+              zipCd1: document.getElementById("zipCode").value.trim().slice(0, 3),
+              zipCd2: document.getElementById("zipCode").value.trim().slice(3),
+              prefecture: state.selectedAddress?.pref || "",
+              city: state.selectedAddress?.city || "",
+              ooazaTsusho: state.selectedAddress?.street || "",
+              azaChome: state.selectedAddress?.chome || "",
+              banchiGo1: banchi,
+              banchiGo2: go,
+              banchiGo3: state.selectedRoom || "",
+              buildingName1: state.selectedBuilding?.name || "",
+              buildingName2: state.selectedSubBuilding?.name || "",
+              buildingName3: state.selectedRoom || ""
+            },
+            areaFlg: ntt.areaFlg || "",
+            orderNumber: ntt.orderNumber || "",
+            addressConfirmFlag: ntt.addressConfirmFlag || "0",
+            dstrctCd: ntt.dstrctCd || "",
+            buldngId
+          }
+        };
+        try {
+          state.availabilityResult = await api.sbServiceAreaCheck(base);
+          state.availabilityResult = { source: "live", ...state.availabilityResult };
+          log("Step4 serviceAreaCheck", state.availabilityResult);
+        } catch (err) {
+          if (err.code === "NTT_TEMP_ERROR") {
+            const retry = JSON.parse(JSON.stringify(base));
+            retry.reqServiceAreaAcquisition.nttapiCollaborationResult = false;
+            try {
+              const liveRetry = await api.sbServiceAreaCheck(retry);
+              state.availabilityResult = { source: "live-retry", ...liveRetry };
+            } catch (retryErr) {
+              const internalRetry = await api.serviceAreaCheck(retry);
+              state.availabilityResult = { source: "internal-fallback", liveError: retryErr, ...internalRetry };
+            }
+            log("Step4 serviceAreaCheck (retry fallback)", state.availabilityResult);
+            return;
+          }
+          const internal = await api.serviceAreaCheck(base);
+          state.availabilityResult = { source: "internal-fallback", liveError: err, ...internal };
+          log("Step4 serviceAreaCheck (fallback)", state.availabilityResult);
+        }
+      }
+
+      async function safeRun(fn) {
+        try {
+          await fn();
+        } catch (err) {
+          log("ERROR", err);
+        }
+      }
+
+      document.getElementById("runSearch").addEventListener("click", () => safeRun(runSearch));
+      document.getElementById("runNormalize").addEventListener("click", () => safeRun(runNormalize));
+      document.getElementById("runDetail").addEventListener("click", () => safeRun(runDetail));
+      document.getElementById("runAvailability").addEventListener("click", () => safeRun(runAvailability));
+      document.getElementById("runAll").addEventListener("click", () => safeRun(async () => {
+        await runSearch();
+        await runNormalize();
+        await runDetail();
+        await runAvailability();
+      }));
+      document.getElementById("goSelect").addEventListener("change", (e) => {
+        state.selectedGo = e.target.value;
+        updateFullAddress();
+        safeRun(loadBuildingFromSelectedGo);
+      });
+      document.getElementById("chomeSelect").addEventListener("change", (e) => {
+        const idx = Number(e.target.value);
+        if (Number.isNaN(idx) || !state.searchResult?.addresses?.[idx]) return;
+        state.selectedAddress = state.searchResult.addresses[idx];
+        safeRun(loadBanchiFromSelected);
+      });
+      document.getElementById("banchiSelect").addEventListener("change", (e) => {
+        const value = e.target.value;
+        state.selectedBanchi = value ? { value } : null;
+        updateFullAddress();
+        safeRun(loadGoFromSelectedBanchi);
+      });
+      document.getElementById("buildingSelect").addEventListener("change", (e) => {
+        const selected = e.target.value;
+        if (!selected) {
+          state.selectedBuilding = null;
+          state.selectedSubBuilding = null;
+          state.selectedRoom = null;
+          updateFullAddress();
+          return;
+        }
+        state.selectedBuilding = {
+          id: selected,
+          name: e.target.options[e.target.selectedIndex]?.textContent || selected
+        };
+        state.selectedSubBuilding = null;
+        state.selectedRoom = null;
+        updateFullAddress();
+        safeRun(loadSubBuildingFromSelectedBuilding);
+      });
+      document.getElementById("subBuildingSelect").addEventListener("change", (e) => {
+        const selected = e.target.value;
+        if (!selected) {
+          state.selectedSubBuilding = null;
+          state.selectedRoom = null;
+          updateFullAddress();
+          return;
+        }
+        state.selectedSubBuilding = {
+          id: selected,
+          name: e.target.options[e.target.selectedIndex]?.textContent || selected
+        };
+        state.selectedRoom = "";
+        updateFullAddress();
+        safeRun(loadRoomFromSelectedSubBuilding);
+      });
+      document.getElementById("roomSelect").addEventListener("change", (e) => {
+        const selected = e.target.value;
+        const name = selected ? (e.target.options[e.target.selectedIndex]?.textContent || selected) : "";
+        safeRun(() => finalizeRoomSelection(name));
+      });
+      renderSession();
+    </script>
+  </body>
+</html>
