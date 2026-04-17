@@ -555,6 +555,46 @@
           .map((x) => ({ id: x, name: x }));
       }
 
+      function extractNttCandidates(resp, stage) {
+        const pushName = (bucket, value, idHint = "") => {
+          const name = String(value || "").trim();
+          if (!name || name === "住所なし") return;
+          if (bucket.some((x) => x.name === name)) return;
+          bucket.push({ id: String(idHint || name), name });
+        };
+
+        const bucket = [];
+
+        // Primary path used by current flow
+        normalizeAddressItems(resp?.orderAddressList).forEach((x) => pushName(bucket, x.name, x.id));
+
+        // Live APIs sometimes return building/room candidates in object lists instead of orderAddressList
+        const objectLists = [
+          ...(Array.isArray(resp?.buldngInfoList) ? resp.buldngInfoList : []),
+          ...(Array.isArray(resp?.buildingList) ? resp.buildingList : []),
+          ...(Array.isArray(resp?.roomInfoList) ? resp.roomInfoList : []),
+          ...(Array.isArray(resp?.addressList) ? resp.addressList : [])
+        ];
+
+        objectLists.forEach((item) => {
+          if (!item || typeof item !== "object") return;
+          pushName(bucket, item.buldngNm, item.buldngId);
+          pushName(bucket, item.buildingName, item.buildingId);
+          pushName(bucket, item.room, item.roomId);
+          pushName(bucket, item.roomName, item.roomId);
+          pushName(bucket, item.name, item.id);
+          pushName(bucket, item.label, item.id);
+          pushName(bucket, item.address, item.id);
+        });
+
+        // Stage-specific fallback for building screen
+        if (!bucket.length && stage === "building" && Array.isArray(resp?.buldngInfoList)) {
+          resp.buldngInfoList.forEach((x) => pushName(bucket, x?.buldngNm, x?.buldngId));
+        }
+
+        return bucket;
+      }
+
       function mergeNttAddressResult(resp) {
         const prev = state.nttAddressResult || {};
         state.nttAddressResult = {
@@ -585,11 +625,11 @@
           orderAddress2: state.selectedAddress?.city || "住所なし",
           orderAddress3: state.selectedAddress?.street || "住所なし",
           orderAddress4: state.selectedAddress?.chome || "住所なし",
-          orderAddress5: toFullWidthDigits(state.selectedBanchi?.value || "") || "住所なし",
-          orderAddress6: toFullWidthDigits(state.selectedGo || "") || "住所なし",
-          orderAddress7: "住所なし",
-          orderAddress8: state.selectedBuilding?.name || "住所なし",
-          orderAddress9: state.selectedSubBuilding?.name || "住所なし",
+          orderAddress5: toFullWidthDigits(state.selectedBanchi?.value || "") || "",
+          orderAddress6: toFullWidthDigits(state.selectedGo || "") || "",
+          orderAddress7: "",
+          orderAddress8: state.selectedBuilding?.name || "",
+          orderAddress9: state.selectedSubBuilding?.name || "",
           inUseServiceType: document.getElementById("inUseServiceType").value
         };
         return { ...payload, ...overrides };
@@ -638,7 +678,7 @@
         try {
           const live = await api.sbNttAddressSearch(buildNttAddressPayload("8"));
           mergeNttAddressResult(live);
-          const buildingCandidates = normalizeAddressItems(live?.orderAddressList);
+          const buildingCandidates = extractNttCandidates(live, "building");
           state.buildingResult = { source: "live-ntt-kbn8", buildingCandidates, raw: live };
           log("Step1.56 buildingByGo (live)", state.buildingResult);
           if (!buildingCandidates.length) {
@@ -665,7 +705,7 @@
         try {
           const live = await api.sbNttAddressSearch(buildNttAddressPayload("9"));
           mergeNttAddressResult(live);
-          const subBuildingCandidates = normalizeAddressItems(live?.orderAddressList);
+          const subBuildingCandidates = extractNttCandidates(live, "subBuilding");
           log("Step1.57 subBuildingByBuilding (live)", { subBuildingCandidates, raw: live });
           renderSubBuilding(subBuildingCandidates);
           if (subBuildingCandidates.length) {
@@ -686,7 +726,7 @@
           const live = await api.sbNttAddressSearch(buildNttAddressPayload("10"));
           mergeNttAddressResult(live);
           state.nttRoomBaseResponse = live;
-          const roomCandidates = normalizeAddressItems(live?.orderAddressList);
+          const roomCandidates = extractNttCandidates(live, "room");
           log("Step1.58 roomBySubBuilding (live)", { roomCandidates, raw: live });
           renderRoom(roomCandidates);
           if (roomCandidates.length) {
