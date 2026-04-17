@@ -548,6 +548,10 @@
         return String(value || "").replace(/[0-9]/g, (d) => String.fromCharCode(d.charCodeAt(0) + 65248));
       }
 
+      function compactAddressNumber(value) {
+        return String(value || "").replace(/[\s\u3000\-ー－−]/g, "");
+      }
+
       function normalizeAddressItems(items) {
         return (Array.isArray(items) ? items : [])
           .map((x) => String(x || "").trim())
@@ -620,6 +624,7 @@
           areaFlg: prev.areaFlg || "",
           orderNumber: prev.orderNumber || "",
           buildingKind: document.getElementById("buildingKind").value,
+          housingType: document.getElementById("housingType").value,
           orderZip: zip,
           orderAddress1: state.selectedAddress?.pref || "住所なし",
           orderAddress2: state.selectedAddress?.city || "住所なし",
@@ -630,9 +635,69 @@
           orderAddress7: "",
           orderAddress8: state.selectedBuilding?.name || "",
           orderAddress9: state.selectedSubBuilding?.name || "",
+          orderAddress10: state.selectedRoom || "",
           inUseServiceType: document.getElementById("inUseServiceType").value
         };
         return { ...payload, ...overrides };
+      }
+
+      function summarizeNttResponse(resp) {
+        return {
+          addressKbn: resp?.addressKbn || "",
+          confirmFlag: resp?.addressConfirmFlag || "",
+          orderAddressListCount: Array.isArray(resp?.orderAddressList) ? resp.orderAddressList.length : 0,
+          buldngInfoListCount: Array.isArray(resp?.buldngInfoList) ? resp.buldngInfoList.length : 0,
+          addressListCount: Array.isArray(resp?.addressList) ? resp.addressList.length : 0
+        };
+      }
+
+      async function searchNttCandidates(addressKbn, stage) {
+        const banchiRaw = state.selectedBanchi?.value || "";
+        const goRaw = state.selectedGo || "";
+        const banchiFw = toFullWidthDigits(banchiRaw);
+        const goFw = toFullWidthDigits(goRaw);
+        const banchiCompact = toFullWidthDigits(compactAddressNumber(banchiRaw));
+        const goCompact = toFullWidthDigits(compactAddressNumber(goRaw));
+
+        const attempts = [
+          { name: `${stage}-base`, payload: buildNttAddressPayload(addressKbn) },
+          {
+            name: `${stage}-compact-number`,
+            payload: buildNttAddressPayload(addressKbn, {
+              orderAddress5: banchiCompact,
+              orderAddress6: goCompact
+            })
+          },
+          {
+            name: `${stage}-legacy-placeholder`,
+            payload: buildNttAddressPayload(addressKbn, {
+              orderAddress5: banchiFw || "住所なし",
+              orderAddress6: goFw || "住所なし",
+              orderAddress7: "住所なし",
+              orderAddress8: state.selectedBuilding?.name || "住所なし",
+              orderAddress9: state.selectedSubBuilding?.name || "住所なし",
+              orderAddress10: state.selectedRoom || "住所なし"
+            })
+          }
+        ];
+
+        let lastResp = null;
+        for (const attempt of attempts) {
+          try {
+            const resp = await api.sbNttAddressSearch(attempt.payload);
+            mergeNttAddressResult(resp);
+            lastResp = resp;
+            const candidates = extractNttCandidates(resp, stage);
+            log(`NTT ${attempt.name}`, { summary: summarizeNttResponse(resp), candidateCount: candidates.length });
+            if (candidates.length) {
+              return { candidates, raw: resp, attempt: attempt.name };
+            }
+          } catch (err) {
+            log(`NTT ${attempt.name} fail`, err);
+          }
+        }
+
+        return { candidates: [], raw: lastResp, attempt: "none" };
       }
 
       async function loadBanchiFromSelected() {
@@ -676,10 +741,9 @@
         if (!state.selectedAddress || !state.selectedBanchi || !state.selectedGo) return;
         resetBuildingUi();
         try {
-          const live = await api.sbNttAddressSearch(buildNttAddressPayload("8"));
-          mergeNttAddressResult(live);
-          const buildingCandidates = extractNttCandidates(live, "building");
-          state.buildingResult = { source: "live-ntt-kbn8", buildingCandidates, raw: live };
+          const result = await searchNttCandidates("8", "building");
+          const buildingCandidates = result.candidates;
+          state.buildingResult = { source: "live-ntt-kbn8", attempt: result.attempt, buildingCandidates, raw: result.raw };
           log("Step1.56 buildingByGo (live)", state.buildingResult);
           if (!buildingCandidates.length) {
             renderBuilding([], { isError: false });
@@ -703,10 +767,9 @@
         state.selectedSubBuilding = null;
         state.selectedRoom = null;
         try {
-          const live = await api.sbNttAddressSearch(buildNttAddressPayload("9"));
-          mergeNttAddressResult(live);
-          const subBuildingCandidates = extractNttCandidates(live, "subBuilding");
-          log("Step1.57 subBuildingByBuilding (live)", { subBuildingCandidates, raw: live });
+          const result = await searchNttCandidates("9", "subBuilding");
+          const subBuildingCandidates = result.candidates;
+          log("Step1.57 subBuildingByBuilding (live)", { attempt: result.attempt, subBuildingCandidates, raw: result.raw });
           renderSubBuilding(subBuildingCandidates);
           if (subBuildingCandidates.length) {
             safeRun(loadRoomFromSelectedSubBuilding);
@@ -723,11 +786,10 @@
         document.getElementById("roomSelect").innerHTML = "";
         state.nttRoomBaseResponse = null;
         try {
-          const live = await api.sbNttAddressSearch(buildNttAddressPayload("10"));
-          mergeNttAddressResult(live);
-          state.nttRoomBaseResponse = live;
-          const roomCandidates = extractNttCandidates(live, "room");
-          log("Step1.58 roomBySubBuilding (live)", { roomCandidates, raw: live });
+          const result = await searchNttCandidates("10", "room");
+          state.nttRoomBaseResponse = result.raw;
+          const roomCandidates = result.candidates;
+          log("Step1.58 roomBySubBuilding (live)", { attempt: result.attempt, roomCandidates, raw: result.raw });
           renderRoom(roomCandidates);
           if (roomCandidates.length) {
             safeRun(() => finalizeRoomSelection(roomCandidates[0].name));
